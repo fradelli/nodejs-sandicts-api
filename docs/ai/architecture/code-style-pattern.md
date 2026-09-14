@@ -24,6 +24,12 @@ do-not-read-when:
 
 Keep implementation intent visible in code.
 
+For function, command, query, hook, and file naming, follow the shared
+`fradelli/sandicts-docs:docs/engineering/code-semantics.md` guideline. It owns
+side-effect naming, meaningful query filters, and prototype/API vocabulary
+boundaries for both apps. The rules below remain the local constant and
+helper-placement baseline.
+
 ## Magic Numbers And Unclear Literals
 
 Do not leave non-obvious numeric literals inline when the value represents a

@@ -27,6 +27,7 @@ Short catalog. Routing hints (`read-when`, `do-not-read-when`, `related`, `canon
 
 | Document                                                                                                                 | Role                                                        |
 | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `fradelli/sandicts-docs:docs/engineering/code-semantics.md` | Shared naming criteria for business commands, queries, helpers, and files |
 | [`docs/ai/api/error-handling-foundation.md`](api/error-handling-foundation.md)                                           | Global HTTP error handling baseline                         |
 | [`docs/ai/api/semantic-api-contracts.md`](api/semantic-api-contracts.md)                                                 | Semantic statuses, public errors, and OpenAPI drift rules   |
 | [`docs/ai/api/zod-swagger-foundation.md`](api/zod-swagger-foundation.md)                                                 | API validation and Swagger baseline                         |

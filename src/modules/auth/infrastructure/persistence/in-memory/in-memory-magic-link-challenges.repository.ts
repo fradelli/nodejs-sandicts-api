@@ -8,7 +8,7 @@ import type {
 class InMemoryMagicLinkChallengesRepository implements MagicLinkChallengesRepository {
   readonly magicLinkChallenges: MagicLinkChallengeRecord[] = [];
 
-  replaceActive(
+  revokeActiveChallengesAndCreate(
     data: CreateMagicLinkChallengeData,
     replacedAt: Date,
   ): Promise<MagicLinkChallengeRecord> {

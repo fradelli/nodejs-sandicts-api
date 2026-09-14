@@ -63,7 +63,8 @@ class GoogleSignInUseCase {
       });
     }
 
-    const account = await this.resolveAccount(googleIdentity);
+    const account =
+      await this.resolveOrCreateAccountForGoogleSignIn(googleIdentity);
     const authSession = await this.createAuthSession.execute({
       accountId: account.id,
       creationSource: 'google',
@@ -82,7 +83,7 @@ class GoogleSignInUseCase {
     };
   }
 
-  private async resolveAccount(
+  private async resolveOrCreateAccountForGoogleSignIn(
     googleIdentity: VerifiedGoogleIdentity,
   ): Promise<AccountRecord> {
     const existingIdentity =
