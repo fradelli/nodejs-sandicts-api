@@ -9,7 +9,8 @@ const MAGIC_LINK_CHALLENGES_REPOSITORY = Symbol(
 );
 
 type MagicLinkChallengesRepository = {
-  replaceActive(
+  /** Atomically revoke still-valid challenges for this email and create the replacement. */
+  revokeActiveChallengesAndCreate(
     data: CreateMagicLinkChallengeData,
     replacedAt: Date,
   ): Promise<MagicLinkChallengeRecord>;

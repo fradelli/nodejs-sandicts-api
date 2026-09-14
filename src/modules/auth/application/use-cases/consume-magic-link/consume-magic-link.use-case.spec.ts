@@ -61,7 +61,7 @@ describe('ConsumeMagicLinkUseCase', () => {
     email = 'user@example.com',
     expiresAt = new Date(Date.now() + validMagicLinkWindowMilliseconds),
   ) {
-    return challengesRepository.replaceActive(
+    return challengesRepository.revokeActiveChallengesAndCreate(
       {
         email,
         tokenHash: magicLinkTokenService.hash(token),

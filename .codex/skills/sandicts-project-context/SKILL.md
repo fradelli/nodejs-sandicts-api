@@ -50,6 +50,15 @@ gate:
 - Implementation: `Aprovado: implemente o plano da KAN-XXX.`
 - Delivery: `Aprovado: pode commitar, subir PR e mover a KAN-XXX para In Review.`
 
+## Code Semantics Contract
+
+Before adding or renaming functions, modules, files, or domain contracts, read
+`fradelli/sandicts-docs:docs/engineering/code-semantics.md` (in the multi-repo
+workspace: `../sandicts-docs/docs/engineering/code-semantics.md`). Apply its
+criteria to changed code and update callers and existing tests. It distinguishes
+business commands and filtered queries from reusable technical helpers; do not
+expand a bounded task into a general naming sweep.
+
 ## Type Placement Contract
 
 For Sandicts backend and frontend work, keep executable implementation and

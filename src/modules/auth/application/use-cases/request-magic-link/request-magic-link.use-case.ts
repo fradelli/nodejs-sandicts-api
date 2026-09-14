@@ -47,7 +47,7 @@ class RequestMagicLinkUseCase {
       this.authSettings.magicLinkTtlSeconds,
     );
 
-    await this.magicLinkChallengesRepository.replaceActive(
+    await this.magicLinkChallengesRepository.revokeActiveChallengesAndCreate(
       {
         email: normalizedEmail,
         tokenHash: this.magicLinkTokenService.hash(token),

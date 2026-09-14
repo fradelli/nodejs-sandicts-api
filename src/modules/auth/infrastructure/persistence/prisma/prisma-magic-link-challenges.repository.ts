@@ -9,19 +9,19 @@ import type {
 } from '../../../application/ports/magic-link-challenges.repository.types';
 import type { PrismaMagicLinkChallengeRecord } from './prisma-magic-link-challenges.repository.types';
 
-const maximumReplaceActiveAttempts = 3;
+const maximumChallengeReplacementAttempts = 3;
 
 @Injectable()
 class PrismaMagicLinkChallengesRepository implements MagicLinkChallengesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async replaceActive(
+  async revokeActiveChallengesAndCreate(
     data: CreateMagicLinkChallengeData,
     replacedAt: Date,
   ): Promise<MagicLinkChallengeRecord> {
     for (
       let attempt = 1;
-      attempt <= maximumReplaceActiveAttempts;
+      attempt <= maximumChallengeReplacementAttempts;
       attempt += 1
     ) {
       try {
@@ -56,7 +56,7 @@ class PrismaMagicLinkChallengesRepository implements MagicLinkChallengesReposito
       } catch (error) {
         const shouldRetry =
           isTransactionConflictError(error) &&
-          attempt < maximumReplaceActiveAttempts;
+          attempt < maximumChallengeReplacementAttempts;
 
         if (!shouldRetry) {
           throw error;
