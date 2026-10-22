@@ -1,0 +1,130 @@
+enum AuthProvider {
+  GOOGLE
+}
+
+enum AccountStatus {
+  ACTIVE
+  BLOCKED
+  DISABLED
+}
+
+enum AuthSessionStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum AuthRefreshTokenStatus {
+  ACTIVE
+  ROTATED
+  REVOKED
+}
+
+enum AuthSessionCreationSource {
+  MAGIC_LINK
+  GOOGLE
+  PASSWORD
+}
+
+model Account {
+  id              String        @id @default(uuid()) @db.Uuid
+  email           String        @unique
+  normalizedEmail String        @unique @map("normalized_email")
+  displayName     String?       @map("display_name")
+  status          AccountStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  externalIdentities ExternalIdentity[]
+  authSessions       AuthSession[]
+  playerProfile      PlayerProfile?
+
+  @@index([status])
+  @@map("accounts")
+}
+
+model ExternalIdentity {
+  id              String       @id @default(uuid()) @db.Uuid
+  accountId       String       @map("account_id") @db.Uuid
+  provider        AuthProvider
+  providerSubject String       @map("provider_subject")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@unique([accountId, provider])
+  @@map("external_identities")
+}
+
+model AuthSession {
+  id                   String                    @id @default(uuid()) @db.Uuid
+  accountId            String                    @map("account_id") @db.Uuid
+  refreshTokenHash     String                    @unique @map("refresh_token_hash")
+  refreshTokenFamilyId String                    @map("refresh_token_family_id")
+  creationSource       AuthSessionCreationSource @map("creation_source")
+  status               AuthSessionStatus         @default(ACTIVE)
+  userAgent            String?                   @map("user_agent")
+  ipAddress            String?                   @map("ip_address")
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
+  lastUsedAt           DateTime?                 @map("last_used_at")
+  idleExpiresAt        DateTime                  @map("idle_expires_at")
+  absoluteExpiresAt    DateTime                  @map("absolute_expires_at")
+  revokedAt            DateTime?                 @map("revoked_at")
+
+  account       Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  refreshTokens AuthRefreshToken[]
+
+  @@index([accountId, status])
+  @@index([refreshTokenFamilyId])
+  @@index([idleExpiresAt])
+  @@index([absoluteExpiresAt])
+  @@map("auth_sessions")
+}
+
+model AuthRefreshToken {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  sessionId            String                 @map("session_id") @db.Uuid
+  refreshTokenFamilyId String                 @map("refresh_token_family_id")
+  tokenHash            String                 @unique @map("token_hash")
+  status               AuthRefreshTokenStatus @default(ACTIVE)
+  createdAt            DateTime               @default(now()) @map("created_at")
+  lastUsedAt           DateTime?              @map("last_used_at")
+  rotatedAt            DateTime?              @map("rotated_at")
+  revokedAt            DateTime?              @map("revoked_at")
+  idleExpiresAt        DateTime               @map("idle_expires_at")
+  absoluteExpiresAt    DateTime               @map("absolute_expires_at")
+
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, status])
+  @@index([refreshTokenFamilyId, status])
+  @@index([idleExpiresAt])
+  @@index([absoluteExpiresAt])
+  @@map("auth_refresh_tokens")
+}
+
+model MagicLinkChallenge {
+  id        String    @id @default(uuid()) @db.Uuid
+  email     String
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([email, usedAt, revokedAt, expiresAt])
+  @@index([expiresAt])
+  @@map("magic_link_challenges")
+}
+
+model BetaInvitation {
+  id              String    @id @default(uuid()) @db.Uuid
+  normalizedEmail String    @unique @map("normalized_email")
+  revokedAt       DateTime? @map("revoked_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([revokedAt])
+  @@map("beta_invitations")
+}

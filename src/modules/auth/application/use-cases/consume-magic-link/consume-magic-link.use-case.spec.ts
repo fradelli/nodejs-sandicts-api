@@ -1,0 +1,196 @@
+import { buildTestAuthConfig } from '@test-support/auth/build-test-auth-config';
+import { InMemoryAccountsRepository } from '@auth/infrastructure/persistence/in-memory/in-memory-accounts.repository';
+import { InMemoryAuthSessionsRepository } from '@auth/infrastructure/persistence/in-memory/in-memory-auth-sessions.repository';
+import { InMemoryMagicLinkChallengesRepository } from '@auth/infrastructure/persistence/in-memory/in-memory-magic-link-challenges.repository';
+import { InMemoryBetaInvitationsRepository } from '@auth/infrastructure/persistence/in-memory/in-memory-beta-invitations.repository';
+import {
+  minutesToMilliseconds,
+  secondsToMilliseconds,
+} from '@shared/time/time.helpers';
+import { MagicLinkTokenService } from '../../services/tokens/magic-link-token.service';
+import { RefreshTokenHasher } from '../../services/tokens/refresh-token-hasher';
+import { TokenService } from '../../services/tokens/token.service';
+import { BetaAccessPolicy } from '../../services/beta-access/beta-access-policy';
+import { ConsumeMagicLinkUseCase } from './consume-magic-link.use-case';
+import { CreateAuthSessionUseCase } from '../create-auth-session/create-auth-session.use-case';
+
+const authSettings = buildTestAuthConfig();
+const validMagicLinkWindowMinutes = 15;
+const validMagicLinkWindowMilliseconds = minutesToMilliseconds(
+  validMagicLinkWindowMinutes,
+);
+const expiredMagicLinkOffsetMilliseconds = secondsToMilliseconds(1);
+
+describe('ConsumeMagicLinkUseCase', () => {
+  function makeSut() {
+    const accountsRepository = new InMemoryAccountsRepository();
+    const authSessionsRepository = new InMemoryAuthSessionsRepository();
+    const challengesRepository = new InMemoryMagicLinkChallengesRepository();
+    const betaInvitationsRepository = new InMemoryBetaInvitationsRepository();
+    betaInvitationsRepository.invite('user@example.com');
+    const magicLinkTokenService = new MagicLinkTokenService();
+    const createAuthSession = new CreateAuthSessionUseCase(
+      accountsRepository,
+      authSessionsRepository,
+      new RefreshTokenHasher(),
+      new TokenService(authSettings),
+      authSettings,
+    );
+    const useCase = new ConsumeMagicLinkUseCase(
+      challengesRepository,
+      accountsRepository,
+      magicLinkTokenService,
+      new BetaAccessPolicy(betaInvitationsRepository),
+      createAuthSession,
+    );
+
+    return {
+      accountsRepository,
+      authSessionsRepository,
+      betaInvitationsRepository,
+      challengesRepository,
+      magicLinkTokenService,
+      useCase,
+    };
+  }
+
+  async function createChallenge(
+    challengesRepository: InMemoryMagicLinkChallengesRepository,
+    magicLinkTokenService: MagicLinkTokenService,
+    token: string,
+    email = 'user@example.com',
+    expiresAt = new Date(Date.now() + validMagicLinkWindowMilliseconds),
+  ) {
+    return challengesRepository.revokeActiveChallengesAndCreate(
+      {
+        email,
+        tokenHash: magicLinkTokenService.hash(token),
+        expiresAt,
+      },
+      new Date(),
+    );
+  }
+
+  it('creates an account and internal auth session for a valid token', async () => {
+    const {
+      accountsRepository,
+      authSessionsRepository,
+      challengesRepository,
+      magicLinkTokenService,
+      useCase,
+    } = makeSut();
+    const token = magicLinkTokenService.generateToken();
+    await createChallenge(challengesRepository, magicLinkTokenService, token);
+
+    const result = await useCase.execute({
+      token,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
+    });
+
+    expect(accountsRepository.accounts).toHaveLength(1);
+    expect(result.account.email).toBe('user@example.com');
+    expect(authSessionsRepository.authSessions).toHaveLength(1);
+    expect(result.session.id).toBe(authSessionsRepository.authSessions[0]?.id);
+    expect(result.accessToken).toContain('.');
+    expect(result.refreshToken).toBeDefined();
+  });
+
+  it('resolves an existing account instead of creating a duplicate', async () => {
+    const {
+      accountsRepository,
+      challengesRepository,
+      magicLinkTokenService,
+      useCase,
+    } = makeSut();
+    const token = magicLinkTokenService.generateToken();
+    const existingAccount = await accountsRepository.create({
+      email: 'user@example.com',
+      normalizedEmail: 'user@example.com',
+    });
+    await createChallenge(challengesRepository, magicLinkTokenService, token);
+
+    const result = await useCase.execute({ token });
+
+    expect(accountsRepository.accounts).toHaveLength(1);
+    expect(result.account.id).toBe(existingAccount.id);
+  });
+
+  it('rejects a token when the invitation was removed before consumption', async () => {
+    const {
+      accountsRepository,
+      authSessionsRepository,
+      betaInvitationsRepository,
+      challengesRepository,
+      magicLinkTokenService,
+      useCase,
+    } = makeSut();
+    const token = magicLinkTokenService.generateToken();
+    await createChallenge(challengesRepository, magicLinkTokenService, token);
+    betaInvitationsRepository.revoke('user@example.com');
+
+    await expect(useCase.execute({ token })).rejects.toMatchObject({
+      code: 'invalid_magic_link_token',
+      message: 'Magic link is invalid or expired',
+    });
+    expect(accountsRepository.accounts).toHaveLength(0);
+    expect(authSessionsRepository.authSessions).toHaveLength(0);
+  });
+
+  it('returns semantic errors for invalid, expired, and already used tokens', async () => {
+    const { challengesRepository, magicLinkTokenService, useCase } = makeSut();
+    const expiredToken = magicLinkTokenService.generateToken();
+    const usedToken = magicLinkTokenService.generateToken();
+    await createChallenge(
+      challengesRepository,
+      magicLinkTokenService,
+      expiredToken,
+      'expired@example.com',
+      new Date(Date.now() - expiredMagicLinkOffsetMilliseconds),
+    );
+    await createChallenge(
+      challengesRepository,
+      magicLinkTokenService,
+      usedToken,
+    );
+
+    await expect(
+      useCase.execute({ token: 'invalid-token' }),
+    ).rejects.toMatchObject({
+      code: 'invalid_magic_link_token',
+    });
+    await expect(
+      useCase.execute({ token: expiredToken }),
+    ).rejects.toMatchObject({
+      code: 'magic_link_expired',
+    });
+
+    await useCase.execute({ token: usedToken });
+
+    await expect(useCase.execute({ token: usedToken })).rejects.toMatchObject({
+      code: 'magic_link_already_used',
+    });
+  });
+
+  it('returns a semantic error when a newer request superseded the token', async () => {
+    const { challengesRepository, magicLinkTokenService, useCase } = makeSut();
+    const supersededToken = magicLinkTokenService.generateToken();
+    const currentToken = magicLinkTokenService.generateToken();
+    await createChallenge(
+      challengesRepository,
+      magicLinkTokenService,
+      supersededToken,
+    );
+    await createChallenge(
+      challengesRepository,
+      magicLinkTokenService,
+      currentToken,
+    );
+
+    await expect(
+      useCase.execute({ token: supersededToken }),
+    ).rejects.toMatchObject({
+      code: 'magic_link_superseded',
+    });
+  });
+});

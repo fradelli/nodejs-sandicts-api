@@ -1,10 +1,23 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ConfigurationModule } from './config/configuration.module';
+import { HttpPlatformModule } from './infra/http/http-platform.module';
+import { HealthModule } from './infra/health/health.module';
+import { LoggingModule } from './infra/logging/logging.module';
+import { PrismaModule } from './infra/prisma/prisma.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { PlayersModule } from './modules/players/players.module';
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigurationModule,
+    LoggingModule,
+    HttpPlatformModule,
+    HealthModule,
+    PrismaModule,
+    AuthModule,
+    PlayersModule,
+  ],
 })
-export class AppModule {}
+class AppModule {}
+
+export { AppModule };
